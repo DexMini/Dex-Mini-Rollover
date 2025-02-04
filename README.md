@@ -2,8 +2,6 @@
 
 # 🔄 DexMini Rollover
 
-<img src="https://your-logo-url.png" alt="DexMini Logo" width="200"/>
-
 > A sophisticated smart contract system for seamless cross-protocol liquidity migration in DeFi
 
 [![License: GPL-2.0-or-later](https://img.shields.io/badge/License-GPL%20v2+-blue.svg)](LICENSE)
