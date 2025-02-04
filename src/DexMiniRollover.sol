@@ -8,23 +8,57 @@ import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/governance/TimelockController.sol";
 import "./Interface/ILiquidityAdapter.sol";
 
+/*////////////////////////////////////////////////////////////////////////////
+//                                                                          //
+//     ██████╗ ███████╗██╗  ██╗    ███╗   ███╗██╗███╗   ██╗██╗           //
+//     ██╔══██╗██╔════╝╚██╗██╔╝    ████╗ ████║██║████╗  ██║██║           //
+//     ██║  ██║█████╗   ╚███╔╝     ██╔████╔██║██║██╔██╗ ██║██║           //
+//     ██║  ██║██╔══╝   ██╔██╗     ██║╚██╔╝██║██║██║╚██╗██║██║           //
+//     ██████╔╝███████╗██╔╝ ██╗    ██║ ╚═╝ ██║██║██║ ╚████║██║           //
+//     ╚═════╝ ╚══════╝╚═╝  ╚═╝    ╚═╝     ╚═╝╚═╝╚═╝  ╚═══╝╚═╝           //
+//                                                                          //
+//     Uniswap V4 Hook - Version 1.0                                       //
+//     https://dexmini.com                                                 //
+//                                                                          //
+////////////////////////////////////////////////////////////////////////////*/
+
+/**
+ * @title RolloverContract
+ * @dev Manages cross-protocol liquidity migrations with integrated fee system
+ * Allows users to move their liquidity positions between different DeFi protocols
+ * while handling rewards, fees, and position transfers in a single transaction
+ */
 contract RolloverContract is Ownable, ReentrancyGuard {
     using SafeERC20 for IERC20;
 
+    // State variables with detailed documentation
+    /// @notice Fee percentage charged for migrations (basis points)
     uint256 public feePercentage;
-    uint256 public constant MAX_FEE = 1000; // 10% maximum
+    /// @notice Maximum fee that can be charged (10% = 1000 basis points)
+    uint256 public constant MAX_FEE = 1000;
+    /// @notice Address that receives collected fees
     address public feeRecipient;
+    /// @notice Address of the WETH contract used for ETH wrapping
     address public immutable wethAddress;
+    /// @notice Mapping of protocol addresses to their respective adapters
     mapping(address => ILiquidityAdapter) public adapters;
 
+    /**
+     * @dev Struct to hold migration transaction data
+     * Used to avoid stack too deep errors and improve code organization
+     */
     struct MigrationData {
-        address[] tokens;
-        uint256[] amounts;
-        uint256[] feeAmounts;
-        uint256 newLiquidity;
-        uint256 initialEthBalance; // Track ETH balance for refunds
+        address[] tokens; // Addresses of tokens involved
+        uint256[] amounts; // Amounts of each token
+        uint256[] feeAmounts; // Fee amounts for each token
+        uint256 newLiquidity; // Amount of new liquidity tokens received
+        uint256 initialEthBalance; // Initial ETH balance for refund calculation
     }
 
+    // Events
+    /**
+     * @dev Emitted when liquidity is successfully migrated
+     */
     event LiquidityRolledOver(
         address indexed user,
         address sourcePool,
@@ -86,6 +120,14 @@ contract RolloverContract is Ownable, ReentrancyGuard {
         destinationAdapter.stakeLiquidity(msg.sender, liquidity);
     }
 
+    /**
+     * @notice Main function to handle the complete liquidity migration process
+     * @param sourcePool Address of the source protocol's pool
+     * @param destinationPool Address of the destination protocol's pool
+     * @param liquidity Amount of liquidity to migrate
+     * @param sourceParams Protocol-specific parameters for withdrawal
+     * @param destinationParams Protocol-specific parameters for deposit
+     */
     function rolloverLiquidity(
         address sourcePool,
         address destinationPool,
@@ -95,6 +137,7 @@ contract RolloverContract is Ownable, ReentrancyGuard {
     ) external payable nonReentrant {
         require(liquidity > 0, "Liquidity must be greater than zero");
 
+        // Step 1: Initialize adapters and validate
         ILiquidityAdapter sourceAdapter = adapters[sourcePool];
         ILiquidityAdapter destinationAdapter = adapters[destinationPool];
         require(
@@ -106,33 +149,53 @@ contract RolloverContract is Ownable, ReentrancyGuard {
             "Destination adapter not registered"
         );
 
+        // Step 2: Initialize migration data
         MigrationData memory data;
         data.initialEthBalance = address(this).balance; // Track initial ETH
 
+        // Step 3: Claim rewards and unstake from source
         claimRewardsAndUnstake(sourceAdapter, liquidity);
+
+        // Step 4: Withdraw liquidity from source pool
         (data.tokens, data.amounts) = sourceAdapter.withdrawLiquidity(
             msg.sender,
             liquidity,
             sourceParams
         );
+
+        // Step 5: Apply migration fees
         applyFees(data);
+
+        // Step 6: Validate balances and wrap ETH if needed
         validateBalancesAndWrapTokens(data);
+
+        // Step 7: Approve tokens for destination pool
         approveTokensForDestinationPool(data, destinationPool);
+
+        // Step 8: Deposit into destination pool
         data.newLiquidity = destinationAdapter.depositLiquidity(
             msg.sender,
             data.amounts,
             destinationParams
         );
+
+        // Step 9: Stake in destination pool if applicable
         stakeLiquidity(destinationAdapter, data.newLiquidity);
 
+        // Step 10: Emit events and handle refunds
         emitEvents(msg.sender, sourcePool, destinationPool, data);
         refundDust(data);
     }
 
+    /**
+     * @notice Claims rewards and unstakes liquidity from source protocol
+     * @dev Handles both reward claiming and unstaking in a single function
+     */
     function claimRewardsAndUnstake(
         ILiquidityAdapter sourceAdapter,
         uint256 liquidity
     ) internal {
+        // Step 1: Claim rewards from the source pool
         (
             address[] memory rewardTokens,
             uint256[] memory rewardAmounts
@@ -142,6 +205,7 @@ contract RolloverContract is Ownable, ReentrancyGuard {
             "Array length mismatch"
         );
 
+        // Step 2: Transfer claimed rewards to user
         for (uint256 i = 0; i < rewardTokens.length; i++) {
             if (rewardAmounts[i] > 0 && rewardTokens[i] != address(0)) {
                 IERC20(rewardTokens[i]).safeTransfer(
@@ -150,23 +214,36 @@ contract RolloverContract is Ownable, ReentrancyGuard {
                 );
             }
         }
+
+        // Step 3: Unstake liquidity from source pool
         sourceAdapter.unstakeLiquidity(msg.sender, liquidity);
     }
 
+    /**
+     * @notice Applies migration fees to withdrawn tokens
+     * @dev Calculates and transfers fees to the fee recipient
+     */
     function applyFees(MigrationData memory data) internal {
+        // Step 1: Initialize fee amounts array
         data.feeAmounts = new uint256[](data.tokens.length);
+
+        // Step 2: Calculate and apply fees for each token
         for (uint256 i = 0; i < data.tokens.length; i++) {
+            // Calculate fee amount
             data.feeAmounts[i] = (data.amounts[i] * feePercentage) / 1000;
             data.amounts[i] -= data.feeAmounts[i];
 
+            // Step 3: Transfer fees if applicable
             if (data.feeAmounts[i] > 0) {
                 if (data.tokens[i] == address(0)) {
+                    // Handle ETH fees
                     wrapETH(data.feeAmounts[i]);
                     IERC20(wethAddress).safeTransfer(
                         feeRecipient,
                         data.feeAmounts[i]
                     );
                 } else {
+                    // Handle ERC20 fees
                     IERC20(data.tokens[i]).safeTransfer(
                         feeRecipient,
                         data.feeAmounts[i]
