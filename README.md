@@ -9,12 +9,6 @@
 [![OpenZeppelin](https://img.shields.io/badge/OpenZeppelin-4.x-blue.svg)](https://www.openzeppelin.com/)
 [![Build Status](https://img.shields.io/github/workflow/status/DexMini/Dex-Mini-Rollover/CI)](https://github.com/DexMini/Dex-Mini-Rollover/actions)
 [![Coverage Status](https://img.shields.io/codecov/c/github/DexMini/Dex-Mini-Rollover)](https://codecov.io/gh/DexMini/Dex-Mini-Rollover)
-
-[Documentation](https://docs.dexmini.com) |
-[Contributing](CONTRIBUTING.md) |
-[Discord](https://discord.gg/dexmini) |
-[Twitter](https://twitter.com/dexmini)
-
 </div>
 
 ---
@@ -39,10 +33,6 @@
 ---
 
 ## 🌟 Overview
-
-<div align="center">
-<img src="https://your-diagram-url.png" alt="DexMini Architecture" width="600"/>
-</div>
 
 DexMini Rollover is a revolutionary smart contract solution that enables users to seamlessly migrate their liquidity positions between different DeFi protocols. It handles the complete migration process including reward claims, fee management, and position transfers in a single transaction.
 
