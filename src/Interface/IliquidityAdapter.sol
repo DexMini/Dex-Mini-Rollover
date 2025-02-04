@@ -1,14 +1,21 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 pragma solidity ^0.8.0;
 
+/**
+ * @title ILiquidityAdapter
+ * @dev Interface for protocol-specific adapters that handle liquidity operations
+ * This interface standardizes interactions with different DeFi protocols
+ * allowing the main contract to work with any protocol that implements this interface
+ */
 interface ILiquidityAdapter {
     /**
-     * @notice Withdraw liquidity from the pool.
-     * @param user Address of the user initiating the withdrawal.
-     * @param liquidity Amount of liquidity to withdraw (e.g., LP tokens, NFT ID).
-     * @param params Protocol-specific parameters (e.g., slippage, tick range).
-     * @return tokens Array of token addresses in the pool.
-     * @return amounts Array of token amounts withdrawn.
+     * @notice Withdraws liquidity from a specific protocol's pool
+     * @dev Handles the complete withdrawal process including unstaking if necessary
+     * @param user Address of the user who owns the liquidity position
+     * @param liquidity Amount of liquidity to withdraw (LP tokens or NFT ID)
+     * @param params Protocol-specific parameters encoded as bytes
+     * @return tokens Array of token addresses involved in the position
+     * @return amounts Array of token amounts withdrawn
      */
     function withdrawLiquidity(
         address user,
@@ -17,11 +24,12 @@ interface ILiquidityAdapter {
     ) external returns (address[] memory tokens, uint256[] memory amounts);
 
     /**
-     * @notice Deposit liquidity into the pool.
-     * @param user Address of the user initiating the deposit.
-     * @param amounts Array of token amounts to deposit.
-     * @param params Protocol-specific parameters (e.g., slippage, tick range).
-     * @return liquidity Amount of liquidity minted (e.g., LP tokens, NFT ID).
+     * @notice Deposits tokens into a protocol's liquidity pool
+     * @dev Handles the complete deposit process including token approvals
+     * @param user Address of the user who will own the liquidity position
+     * @param amounts Array of token amounts to deposit
+     * @param params Protocol-specific parameters encoded as bytes
+     * @return liquidity Amount of liquidity tokens or NFT ID received
      */
     function depositLiquidity(
         address user,
@@ -30,12 +38,13 @@ interface ILiquidityAdapter {
     ) external returns (uint256 liquidity);
 
     /**
-     * @notice Swap tokens within the protocol.
-     * @param user Address of the user initiating the swap.
-     * @param path Array of token addresses representing the swap route.
-     * @param amountIn Amount of input tokens to swap.
-     * @param minAmountOut Minimum amount of output tokens expected.
-     * @return amountOut Actual amount of output tokens received.
+     * @notice Executes a token swap within the protocol
+     * @dev Used for optimizing token ratios before deposits
+     * @param user Address of the user executing the swap
+     * @param path Array of token addresses defining the swap path
+     * @param amountIn Amount of input tokens to swap
+     * @param minAmountOut Minimum amount of output tokens to receive
+     * @return amountOut Actual amount of output tokens received
      */
     function swapTokens(
         address user,
@@ -45,44 +54,56 @@ interface ILiquidityAdapter {
     ) external returns (uint256 amountOut);
 
     /**
-     * @notice Stake LP tokens in a farming contract.
-     * @param user Address of the user initiating the stake.
-     * @param liquidity Amount of LP tokens to stake.
+     * @notice Stakes liquidity tokens in the protocol's farming contract
+     * @dev Handles the staking process for yield farming
+     * @param user Address of the user who owns the liquidity
+     * @param liquidity Amount of liquidity tokens to stake
      */
     function stakeLiquidity(address user, uint256 liquidity) external;
 
     /**
-     * @notice Unstake LP tokens from a farming contract.
-     * @param user Address of the user initiating the unstake.
-     * @param liquidity Amount of LP tokens to unstake.
+     * @notice Unstakes liquidity tokens from the protocol's farming contract
+     * @dev Handles the unstaking process, including any timelock checks
+     * @param user Address of the user who owns the staked position
+     * @param liquidity Amount of liquidity tokens to unstake
      */
     function unstakeLiquidity(address user, uint256 liquidity) external;
 
     /**
-     * @notice Claim rewards from a farming contract.
-     * @param user Address of the user claiming rewards.
-     * @return rewards Array of reward token addresses and amounts.
+     * @notice Claims farming rewards from the protocol
+     * @dev Handles reward token collection and distribution
+     * @param user Address of the user claiming rewards
+     * @return rewards Array of reward token addresses
+     * @return amounts Array of reward amounts claimed
      */
-    function claimRewards(address user) external returns (address[] memory rewards, uint256[] memory amounts);
+    function claimRewards(
+        address user
+    ) external returns (address[] memory rewards, uint256[] memory amounts);
 
     /**
-     * @notice Enable impermanent loss protection for a user.
-     * @param user Address of the user enabling IL protection.
-     * @param liquidity Amount of liquidity to protect.
+     * @notice Enables impermanent loss protection for a liquidity position
+     * @dev Protocol-specific IL protection mechanism
+     * @param user Address of the user enabling protection
+     * @param liquidity Amount of liquidity to protect
      */
     function enableILProtection(address user, uint256 liquidity) external;
 
     /**
-     * @notice Disable impermanent loss protection for a user.
-     * @param user Address of the user disabling IL protection.
-     * @param liquidity Amount of liquidity to remove from protection.
+     * @notice Disables impermanent loss protection
+     * @dev Removes protection from a specified amount of liquidity
+     * @param user Address of the user disabling protection
+     * @param liquidity Amount of liquidity to remove protection from
      */
     function disableILProtection(address user, uint256 liquidity) external;
 
     /**
-     * @notice Claim compensation for impermanent loss.
-     * @param user Address of the user claiming compensation.
-     * @return tokens Array of token addresses and amounts compensated.
+     * @notice Claims compensation for impermanent loss
+     * @dev Calculates and distributes IL compensation
+     * @param user Address of the user claiming compensation
+     * @return tokens Array of token addresses used for compensation
+     * @return amounts Array of compensation amounts
      */
-    function claimILCompensation(address user) external returns (address[] memory tokens, uint256[] memory amounts);
+    function claimILCompensation(
+        address user
+    ) external returns (address[] memory tokens, uint256[] memory amounts);
 }
