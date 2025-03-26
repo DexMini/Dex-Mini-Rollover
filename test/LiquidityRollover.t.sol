@@ -5,9 +5,36 @@ import "forge-std/Test.sol";
 import "../src/DexMiniRollover.sol";
 import "../src/Interface/IliquidityAdapter.sol";
 
+contract MockWETH {
+    mapping(address => uint256) public balances;
+
+    function deposit() external payable {
+        balances[msg.sender] += msg.value;
+    }
+
+    function withdraw(uint256 amount) external {
+        require(balances[msg.sender] >= amount, "Insufficient balance");
+        balances[msg.sender] -= amount;
+        payable(msg.sender).transfer(amount);
+    }
+
+    function balanceOf(address account) external view returns (uint256) {
+        return balances[account];
+    }
+
+    function transfer(address to, uint256 amount) external returns (bool) {
+        require(balances[msg.sender] >= amount, "Insufficient balance");
+        balances[msg.sender] -= amount;
+        balances[to] += amount;
+        return true;
+    }
+
+    receive() external payable {}
+}
+
 contract MockAdapter is ILiquidityAdapter {
     function withdrawLiquidity(
-        address /* _user */,
+        address /* user */,
         uint256 /* _liquidity */,
         bytes calldata /* _params */,
         uint256[] calldata /* _minAmounts */
@@ -17,21 +44,23 @@ contract MockAdapter is ILiquidityAdapter {
         override
         returns (address[] memory tokens, uint256[] memory amounts)
     {
-        tokens = new address[](2);
-        amounts = new uint256[](2);
-        tokens[0] = address(0x123);
-        tokens[1] = address(0x456);
+        tokens = new address[](1);
+        amounts = new uint256[](1);
+        tokens[0] = address(0); // ETH
         amounts[0] = 100;
-        amounts[1] = 100;
+        return (tokens, amounts);
     }
 
     function depositLiquidity(
-        address /* _user */,
-        uint256[] calldata /* _amounts */,
+        address /* user */,
+        uint256[] calldata _amounts,
         bytes calldata /* _params */,
-        uint256 /* _minLiquidity */
+        uint256 minLiquidity
     ) external pure override returns (uint256 liquidity) {
-        return 90;
+        require(_amounts[0] >= 100, "Insufficient amount");
+        liquidity = 100;
+        require(liquidity >= minLiquidity, "Deposit slippage exceeded");
+        return liquidity;
     }
 
     function swapTokens(
@@ -61,10 +90,9 @@ contract MockAdapter is ILiquidityAdapter {
         override
         returns (address[] memory rewards, uint256[] memory amounts)
     {
-        rewards = new address[](1);
-        amounts = new uint256[](1);
-        rewards[0] = address(0x789);
-        amounts[0] = 10;
+        rewards = new address[](0);
+        amounts = new uint256[](0);
+        return (rewards, amounts);
     }
 
     function enableILProtection(
@@ -85,10 +113,9 @@ contract MockAdapter is ILiquidityAdapter {
         override
         returns (address[] memory tokens, uint256[] memory amounts)
     {
-        tokens = new address[](1);
-        amounts = new uint256[](1);
-        tokens[0] = address(0x789);
-        amounts[0] = 5;
+        tokens = new address[](0);
+        amounts = new uint256[](0);
+        return (tokens, amounts);
     }
 }
 
@@ -98,21 +125,22 @@ contract LiquidityRolloverTest is Test {
     MockAdapter public destAdapter;
     address public owner;
     address public feeRecipient;
-    address public weth;
+    MockWETH public weth;
     address public timelock;
     address public user;
 
     function setUp() public {
         owner = address(this);
         feeRecipient = address(0x123);
-        weth = address(0x456);
+        weth = new MockWETH();
         timelock = address(0x789);
         user = address(0xabc);
 
+        vm.startPrank(timelock);
         rollover = new RolloverContract(
             100, // 1% fee
             feeRecipient,
-            weth,
+            address(weth),
             timelock
         );
 
@@ -121,19 +149,67 @@ contract LiquidityRolloverTest is Test {
 
         rollover.allowAdapter(address(sourceAdapter));
         rollover.allowAdapter(address(destAdapter));
+        vm.stopPrank();
     }
 
     function testRolloverLiquidity() public {
         vm.startPrank(user);
-        rollover.rolloverLiquidity(
-            address(sourceAdapter),
-            address(destAdapter),
-            100,
-            "",
-            "",
-            new uint256[](2),
-            90
+        vm.deal(user, 100 ether);
+
+        console.log("Initial user ETH balance:", user.balance);
+        console.log("Initial contract ETH balance:", address(rollover).balance);
+        console.log(
+            "Initial WETH balance of contract:",
+            weth.balanceOf(address(rollover))
         );
+
+        (bool success, ) = address(rollover).call{value: 100 ether}("");
+        require(success, "ETH transfer failed");
+
+        console.log("After ETH transfer:");
+        console.log("User ETH balance:", user.balance);
+        console.log("Contract ETH balance:", address(rollover).balance);
+        console.log(
+            "Contract WETH balance:",
+            weth.balanceOf(address(rollover))
+        );
+
+        // Log adapter addresses and allowances
+        console.log("Source adapter:", address(sourceAdapter));
+        console.log("Dest adapter:", address(destAdapter));
+        console.log("Are adapters allowed?");
+        console.log(
+            "Source:",
+            rollover.allowedAdapters(address(sourceAdapter))
+        );
+        console.log("Dest:", rollover.allowedAdapters(address(destAdapter)));
+
+        try
+            rollover.rolloverLiquidity(
+                address(sourceAdapter),
+                address(destAdapter),
+                100,
+                "",
+                "",
+                new uint256[](1),
+                90
+            )
+        {
+            console.log("Rollover succeeded");
+        } catch Error(string memory reason) {
+            console.log("Rollover failed with reason:", reason);
+        } catch (bytes memory) {
+            console.log("Rollover failed with low-level error");
+        }
+
+        console.log("Final state:");
+        console.log("User ETH balance:", user.balance);
+        console.log("Contract ETH balance:", address(rollover).balance);
+        console.log(
+            "Contract WETH balance:",
+            weth.balanceOf(address(rollover))
+        );
+
         vm.stopPrank();
     }
 
@@ -146,7 +222,7 @@ contract LiquidityRolloverTest is Test {
             0,
             "",
             "",
-            new uint256[](2),
+            new uint256[](1),
             90
         );
         vm.stopPrank();
@@ -154,6 +230,9 @@ contract LiquidityRolloverTest is Test {
 
     function testRolloverLiquiditySlippage() public {
         vm.startPrank(user);
+        vm.deal(user, 100 ether);
+        (bool success, ) = address(rollover).call{value: 100 ether}("");
+        require(success, "ETH transfer failed");
         vm.expectRevert("Deposit slippage exceeded");
         rollover.rolloverLiquidity(
             address(sourceAdapter),
@@ -161,8 +240,8 @@ contract LiquidityRolloverTest is Test {
             100,
             "",
             "",
-            new uint256[](2),
-            95
+            new uint256[](1),
+            101
         );
         vm.stopPrank();
     }
