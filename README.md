@@ -4,14 +4,17 @@
 
 > A sophisticated smart contract system for seamless cross-protocol liquidity migration in DeFi
 
-![DexMini Banner](https://placehold.co/2000x400?text=DexMini+Rollover+📈+Seamless+Cross-Protocol+Liquidity+Migration&font=roboto)
-
-[![License: GPL-2.0-or-later](https://img.shields.io/badge/License-GPL%20v2+-blue.svg)](LICENSE)
-[![Solidity](https://img.shields.io/badge/solidity-%5E0.8.0-363636.svg)](https://docs.soliditylang.org/en/v0.8.0/)
-[![Test Coverage](https://img.shields.io/badge/coverage-95%25-brightgreen)](https://dexmini.com)
-[![Audit Status](https://img.shields.io/badge/audit-Pending-yellow)](https://dexmini.com)
-
-</div>
+> ⚠️ **CONCEPT NOTICE** ⚠️
+> 
+> This is a conceptual implementation and proof of concept. The code is experimental and may contain bugs, security vulnerabilities, or incomplete features. This project is not production-ready and should not be used in production environments without thorough auditing and testing.
+> 
+> Key risks include:
+> - Untested Refinance interactions
+> - Potential Unstaking vulnerabilities
+> - Unverified economic assumptions
+> - Incomplete security measures
+> 
+> Use at your own risk. We welcome contributions to improve the codebase.
 
 ---
 
