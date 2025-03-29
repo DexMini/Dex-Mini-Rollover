@@ -1,5 +1,3 @@
-<div align="center">
-
 # 🔄 DexMini Rollover
 
 > A sophisticated smart contract system for seamless cross-protocol liquidity migration in DeFi
@@ -15,25 +13,6 @@
 > - Incomplete security measures
 > 
 > Use at your own risk. We welcome contributions to improve the codebase.
-
----
-
-## 📑 Table of Contents
-
-<details>
-<summary>Click to expand</summary>
-
-- [Overview](#-overview)
-- [Features](#-features)
-- [Architecture](#-architecture)
-- [Getting Started](#-getting-started)
-- [Usage](#-usage)
-- [Security](#-security)
-- [Development](#-development)
-- [Contributing](#-contributing)
-- [License](#-license)
-
-</details>
 
 ---
 
